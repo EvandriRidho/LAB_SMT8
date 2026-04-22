@@ -21,7 +21,7 @@ def client():
             print("\nKeluar dari program...")
             break
         except ConnectionRefusedError:
-            print("Server tidak merespon. Pastikan kunci_server.py sudah berjalan.")
+            print("Server tidak merespon. Pastikan server.py sudah berjalan.")
             break
 
 if __name__ == "__main__":
