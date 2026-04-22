@@ -1,14 +1,11 @@
 import socket
 
-
 HOST = '127.0.0.1'
 PORT = 65432
 
-
 BLOCKED_DOMAINS = ['weibo.com', 'bilibili.tv', 'aipac.org']
 
-def start_server():
-    
+def server():    
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))
         s.listen()
@@ -41,4 +38,4 @@ def start_server():
                     conn.sendall(response.encode('utf-8'))
 
 if __name__ == "__main__":
-    start_server()
+    server()

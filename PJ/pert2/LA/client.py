@@ -3,7 +3,7 @@ import socket
 HOST = '127.0.0.1'
 PORT = 65432
 
-def start_client():
+def client():
     while True:
         try:
             domain = input("Masukkan domain: ").strip()
@@ -25,4 +25,4 @@ def start_client():
             break
 
 if __name__ == "__main__":
-    start_client()
+    client()
