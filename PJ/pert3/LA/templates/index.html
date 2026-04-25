@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>URL Shortener</title>
+  </head>
+  <body>
+    <h1>URL Shortener</h1>
+
+    <form method="POST">
+      <label for="url">URL:</label>
+      <input type="text" name="url" id="url" required />
+      <button type="submit">Shorten</button>
+    </form>
+
+    <h2>Daftar URL:</h2>
+    <ul>
+      {% for code, original in urls.items() %}
+      <li>
+        {{ original }} &rarr;
+        <a href="/{{ code }}" target="_blank">{{ code }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </body>
+</html>
