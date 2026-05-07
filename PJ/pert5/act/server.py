@@ -1,86 +1,51 @@
+# remote_server.py
 import socket
+import pyautogui
+from PIL import Image
+import io
 import threading
-import os
+import struct
 
-PORT = 5050
-SERVER = "0.0.0.0"
-ADDR = (SERVER, PORT)
-SEPARATOR = "<SEPARATOR>"
-CHUNKSIZE = 4 * 1024  # 4KB
-
-def send_file(conn, filename):
-    filesize = os.path.getsize(filename)
-    # Mengirim metadata (nama file dan ukuran)
-    conn.send(f"{filename}{SEPARATOR}{filesize}".encode())
-
-    with open(filename, "rb") as f:
-        while True:
-            bytes_read = f.read(CHUNKSIZE)
-            if not bytes_read:
-                # File selesai dibaca
-                break
-            conn.sendall(bytes_read)
-
-def receive_file(conn):
-    data = conn.recv(1024).decode()
-    filename, filesize = data.split(SEPARATOR)
-    filename = os.path.basename(filename)
-    filesize = int(filesize)
-
-    received = 0
-    with open(filename, "wb") as f:
-        while received < filesize:
-            chunk = min(CHUNKSIZE, filesize - received)
-            bytes_read = conn.recv(chunk)
-            if not bytes_read:
-                break
-            f.write(bytes_read)
-            received += len(bytes_read)
-    print(f"[DONE] '{filename}' tersimpan ({received} bytes)")
-
-def handle_client(conn, addr):
-    print(f"[NEW CONNECTION] {addr} connected.")
-
-    connected = True
-    while connected:
+def handle_input(conn):
+    """Menerima perintah mouse/keyboard dari client"""
+    while True:
         try:
             data = conn.recv(1024).decode()
-            if not data:
-                break
-
-            if data == "SEND":
-                conn.send("OK".encode())
-                # Server akan mengirim file ke client
-                filename = conn.recv(1024).decode()
-                send_file(conn, filename)
-                
-            elif data == "RECEIVE":
-                conn.send("OK".encode())
-                # Server akan menerima file dari client
-                receive_file(conn)
-            
-            else:
-                # Jika command tidak dikenal atau client kirim sinyal putus
-                break
-        except Exception as e:
-            print(f"[ERROR] {e}")
+            if not data: break
+            # Format: "MOUSE,x,y" atau "KEY,key"
+            cmd = data.split(",")
+            if cmd[0] == "MOUSE":
+                pyautogui.moveTo(int(cmd[1]), int(cmd[2]))
+            elif cmd[0] == "CLICK":
+                pyautogui.click()
+        except:
             break
 
-    conn.close()
-    print(f"[DISCONNECTED] {addr} disconnected.")
-
-def start_server():
+def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind(ADDR)
-    
-    server.listen()
-    print(f"[LISTENING] Server is listening on {SERVER}")
+    server.bind(('0.0.0.0', 9999))
+    server.listen(1)
+    print("[WAITING] Menunggu koneksi remote...")
+    conn, addr = server.accept()
+    print(f"[CONNECTED] Dikendalikan oleh {addr}")
 
-    while True:
-        conn, addr = server.accept()
-        thread = threading.Thread(target=handle_client, args=(conn, addr))
-        thread.start()
-        print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
+    # Jalankan thread untuk menerima input
+    threading.Thread(target=handle_input, args=(conn,), daemon=True).start()
+
+    try:
+        while True:
+            # Ambil screenshot
+            screen = pyautogui.screenshot()
+            # Kompres ke JPEG untuk hemat bandwidth
+            img_byte_arr = io.BytesIO()
+            screen.save(img_byte_arr, format='JPEG', quality=50)
+            data = img_byte_arr.getvalue()
+            
+            # Kirim ukuran data terlebih dahulu
+            conn.sendall(struct.pack(">L", len(data)) + data)
+    except:
+        print("[DISCONNECTED] Koneksi terputus.")
+        conn.close()
 
 if __name__ == "__main__":
-    start_server()
+    main()

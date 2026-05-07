@@ -1,72 +1,56 @@
+# remote_client.py
 import socket
-import os
+import tkinter as tk
+from PIL import Image, ImageTk
+import io
+import struct
+import threading
 
-PORT = 5050
-# Ganti SERVER dengan alamat IP server jika dijalankan di komputer berbeda
-SERVER = "172.20.10.2" #ipconfig di terminal yg ipv4 
-ADDR = (SERVER, PORT)
-SEPARATOR = "<SEPARATOR>"
-CHUNKSIZE = 4 * 1024
+def main():
+    host = input("Masukkan IP Server: ")
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client.connect((host, 9999))
 
-def send_file(conn, filename):
-    filesize = os.path.getsize(filename)
-    # Kirim nama file dan ukurannya ke server
-    conn.send(f"{filename}{SEPARATOR}{filesize}".encode())
-
-    with open(filename, "rb") as f:
-        while True:
-            bytes_read = f.read(CHUNKSIZE)
-            if not bytes_read:
-                break
-            conn.sendall(bytes_read)
-
-def receive_file(conn):
-    # Terima nama file dan ukurannya
-    data = conn.recv(1024).decode()
-    filename, filesize = data.split(SEPARATOR)
+    root = tk.Tk()
+    root.title("Remote Viewer")
     
-    filename = os.path.basename(filename)
-    filesize = int(filesize)
+    label = tk.Label(root)
+    label.pack()
 
-    with open(filename, "wb") as f:
-        while True:
-            bytes_read = conn.recv(CHUNKSIZE)
-            if not bytes_read:
-                break
-            f.write(bytes_read)
+    def send_click(event):
+        client.send(f"MOUSE,{event.x},{event.y}".encode())
+        client.send("CLICK".encode())
 
-def send_file_to_server(filename):
-    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect(ADDR)
+    label.bind("<Button-1>", send_click)
 
-    client.send("RECEIVE".encode())  # ← server akan RECEIVE
-    response = client.recv(1024).decode()
+    def update_screen():
+        data = b""
+        payload_size = struct.calcsize(">L")
+        try:
+            while True:
+                # Ambil ukuran data
+                while len(data) < payload_size:
+                    data += client.recv(4096)
+                packed_msg_size = data[:payload_size]
+                data = data[payload_size:]
+                msg_size = struct.unpack(">L", packed_msg_size)[0]
 
-    if response == "OK":
-        send_file(client, filename)  # client kirim file
-        print(f"[SUCCESS] '{filename}' terkirim ke server.")
+                # Ambil data gambar sesuai ukuran
+                while len(data) < msg_size:
+                    data += client.recv(4096)
+                frame_data = data[:msg_size]
+                data = data[msg_size:]
 
-    client.close()
+                # Tampilkan gambar
+                img = Image.open(io.BytesIO(frame_data))
+                img_tk = ImageTk.PhotoImage(img)
+                label.config(image=img_tk)
+                label.image = img_tk
+        except:
+            print("Koneksi terputus.")
 
-def receive_file_from_server(filename):
-    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect(ADDR)
-
-    client.send("SEND".encode())  # ← server akan SEND
-    response = client.recv(1024).decode()
-
-    if response == "OK":
-        client.send(filename.encode())
-        receive_file(client)  # client terima file
-        print(f"[SUCCESS] File diterima dari server.")
-
-    client.close()
+    threading.Thread(target=update_screen, daemon=True).start()
+    root.mainloop()
 
 if __name__ == "__main__":
-    # Pastikan file.txt ada di folder yang sama sebelum menjalankan send_file_to_server
-    send_file_to_server("file.txt") 
-    
-    # Atau jika ingin mengambil file dari server
-    receive_file_from_server("file.txt")
-    
-    pass # Ganti dengan fungsi yang ingin kamu jalankan
+    main()
